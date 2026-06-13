@@ -1,0 +1,79 @@
+services:
+  app:
+    container_name: commentTree
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: service
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      pg-local:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: always
+    volumes:
+      - ./configs:/app/configs
+    networks:
+      - app-network
+
+  web:
+    container_name: commentTree-web
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    command: npm run dev:vite
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    networks:
+      - app-network
+
+  migrate:
+    image: migrate/migrate:v4.15.2
+    container_name: migration
+    depends_on:
+      pg-local:
+        condition: service_healthy
+    command:
+      [
+        "-path=/app/migrations",
+        "-database=postgres://postgres:1@pg-local:5432/postgres?sslmode=disable",
+        "up"
+      ]
+    volumes:
+      - ./migrations:/app/migrations
+    networks:
+      - app-network
+
+  pg-local:
+    container_name: pg-local
+    image: postgres:16
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-local-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_PASSWORD: 1
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pg-local-data:

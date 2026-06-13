@@ -1,0 +1,14 @@
+env: "development"
+
+http:
+  port: ":8080"
+  read_timeout: "10s"
+  write_timeout: "10s"
+  idle_timeout: "60s"
+  shutdown_timeout: "8s"
+
+postgres:
+  connection_url: "postgres://postgres:1@pg-local:5432/postgres?sslmode=disable"
+
+logging:
+  level: "debug"
