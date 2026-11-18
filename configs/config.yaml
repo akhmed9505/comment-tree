@@ -1,0 +1,26 @@
+http:
+  addr: "127.0.0.1:8080"
+  read_header_timeout: 3s
+  read_timeout: 10s
+  write_timeout: 10s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  max_header_bytes: 16384
+
+postgres:
+  max_conns: 10
+  min_conns: 2
+  connect_timeout: 3s
+  statement_timeout: 4s
+  lock_timeout: 1s
+
+logging:
+  level: info
+  format: json
+
+limits:
+  request_timeout: 5s
+  max_request_bytes: 65536
+  max_response_bytes: 8388608
+  max_result_nodes: 10000
+  max_concurrent_requests: 8
