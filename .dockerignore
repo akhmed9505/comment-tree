@@ -1,0 +1,14 @@
+*
+!go.mod
+!go.sum
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!web/
+!web/**
+!configs/
+!configs/config.yaml
+**/*_test.go
+!migrations/
+!migrations/**
