@@ -4,20 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/akhmed9505/comment-tree/internal/config"
-	"github.com/akhmed9505/comment-tree/internal/logger"
+	"github.com/akhmed9505/comment-tree/internal/app"
 )
 
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "load configuration: %v\n", err)
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	log, err := logger.New(cfg.Logging, os.Stdout)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-	log.Info("application initialized")
 }

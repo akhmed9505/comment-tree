@@ -1,15 +1,16 @@
-package http
+package middleware
 
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	nethttp "net/http"
+	"sync"
 	"time"
 
 	"github.com/akhmed9505/comment-tree/internal/config"
+	"github.com/akhmed9505/comment-tree/internal/delivery/http/response"
 	"github.com/akhmed9505/comment-tree/internal/domain"
 )
 
@@ -21,17 +22,27 @@ func RequestID(ctx context.Context) string {
 	return id
 }
 
-// NewMiddleware returns middleware for bounded JSON responses, deadlines and request logging.
-func NewMiddleware(log *slog.Logger, limits config.Limits) (func(nethttp.Handler) nethttp.Handler, error) {
+// Controller tracks handlers independently of HTTP response deadlines.
+type Controller struct {
+	wrap          func(nethttp.Handler) nethttp.Handler
+	mu            sync.Mutex
+	active, limit int
+	draining      bool
+	idle          chan struct{}
+}
+
+// New builds middleware with lifecycle tracking for background handlers.
+func New(log *slog.Logger, limits config.Limits) (*Controller, error) {
 	if log == nil || limits.RequestTimeout <= 0 || limits.MaxRequestBytes < 1 || limits.MaxConcurrentRequests < 1 {
 		return nil, errors.New("HTTP middleware requires a logger and positive request limits")
 	}
 	// Fallback JSON errors must fit the response limit too.
-	if limits.MaxResponseBytes < minimumResponseBytes() {
+	if limits.MaxResponseBytes < response.MinimumErrorBytes() {
 		return nil, errors.New("HTTP response limit is too small for safe JSON errors")
 	}
-	slots := make(chan struct{}, limits.MaxConcurrentRequests)
-	return func(next nethttp.Handler) nethttp.Handler {
+	c := &Controller{limit: limits.MaxConcurrentRequests, idle: make(chan struct{})}
+	close(c.idle)
+	c.wrap = func(next nethttp.Handler) nethttp.Handler {
 		return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 			start := time.Now()
 			method, path := r.Method, r.URL.Path
@@ -53,16 +64,14 @@ func NewMiddleware(log *slog.Logger, limits config.Limits) (func(nethttp.Handler
 				if errors.Is(r.Context().Err(), context.Canceled) {
 					return
 				}
-				status = responseError(err).status
-				fail(w, r, err)
+				status = response.ErrorFor(err).Status
+				response.Fail(w, r, err)
 			}
 			if err := r.Context().Err(); err != nil {
 				respondError(err)
 				return
 			}
-			select {
-			case slots <- struct{}{}:
-			default:
+			if !c.enter() {
 				respondError(domain.ErrUnavailable)
 				return
 			}
@@ -76,12 +85,11 @@ func NewMiddleware(log *slog.Logger, limits config.Limits) (func(nethttp.Handler
 			done := make(chan struct{})
 			panicked := false
 			go func() {
+				defer c.leave()
 				defer func() {
 					if recover() != nil {
 						panicked = true
 					}
-					// Keep the slot until the handler stops, even when the client has already timed out.
-					<-slots
 					close(done)
 					if panicked {
 						// The response decision is final before deciding whether a separate panic event is needed.
@@ -121,17 +129,8 @@ func NewMiddleware(log *slog.Logger, limits config.Limits) (func(nethttp.Handler
 				}
 			}
 		})
-	}, nil
-}
-
-func minimumResponseBytes() int64 {
-	var size int64
-	for _, err := range []error{domain.ErrInternal, domain.ErrUnavailable, domain.ErrResultTooLarge, context.DeadlineExceeded} {
-		e := responseError(err)
-		data, _ := json.Marshal(errorResponse{Error: errorDTO{Code: e.code, Message: e.message}})
-		size = max(size, int64(len(data)+1))
 	}
-	return size
+	return c, nil
 }
 
 func protectedHeaders(header nethttp.Header, id string) {
@@ -141,4 +140,43 @@ func protectedHeaders(header nethttp.Header, id string) {
 	header.Set("Referrer-Policy", "no-referrer")
 	header.Set("Content-Security-Policy", "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 	header.Set("Cache-Control", "no-store")
+}
+
+// Wrap applies the middleware to a finite HTTP handler.
+func (c *Controller) Wrap(next nethttp.Handler) nethttp.Handler { return c.wrap(next) }
+
+// Shutdown stops admission and waits for all handlers, including those past their HTTP deadline.
+func (c *Controller) Shutdown(ctx context.Context) error {
+	c.mu.Lock()
+	c.draining = true
+	idle := c.idle
+	c.mu.Unlock()
+	select {
+	case <-idle:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Controller) enter() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.draining || c.active >= c.limit {
+		return false
+	}
+	if c.active == 0 {
+		c.idle = make(chan struct{})
+	}
+	c.active++
+	return true
+}
+
+func (c *Controller) leave() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.active--
+	if c.active == 0 {
+		close(c.idle)
+	}
 }

@@ -1,4 +1,4 @@
-package http
+package comments
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
+	"github.com/akhmed9505/comment-tree/internal/config"
+	"github.com/akhmed9505/comment-tree/internal/delivery/http/middleware"
+	"github.com/akhmed9505/comment-tree/internal/delivery/http/response"
 	"github.com/akhmed9505/comment-tree/internal/domain"
 )
 
@@ -47,15 +53,20 @@ func (s serviceStub) Search(c context.Context, o domain.SearchOptions) (domain.S
 
 func request(t *testing.T, s Service, method, path, body string, maxBytes int64) *httptest.ResponseRecorder {
 	t.Helper()
-	h, err := New(s)
+	h, err := testRoutes(s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(context.WithValue(t.Context(), contextKey{}, t.Context()))
 	r.Header.Set("Content-Type", "application/json")
-	limits := middlewareLimits()
+	limits := config.Limits{RequestTimeout: time.Second, MaxRequestBytes: 64, MaxResponseBytes: 4096, MaxConcurrentRequests: 2}
 	limits.MaxRequestBytes = maxBytes
-	h = wrapTest(t, limits, io.Discard, h)
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	wrap, err := middleware.New(log, limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h = wrap.Wrap(h)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -194,7 +205,7 @@ func TestInvalidRequests(t *testing.T) {
 	if w := request(t, serviceStub{}, "PUT", "/comments", "", 65536); w.Header().Get("Allow") != "GET, POST" {
 		t.Fatal("nethttp.StatusMethodNotAllowed must list supported methods")
 	}
-	h, _ := New(serviceStub{})
+	h, _ := testRoutes(serviceStub{})
 	r := httptest.NewRequest("POST", "/comments", strings.NewReader("{}"))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -224,7 +235,7 @@ func TestErrorMapping(t *testing.T) {
 				return domain.RootPage{}, fmt.Errorf("private credentials: %w", tc.cause)
 			}}
 			w := request(t, s, "GET", "/comments", "", 65536)
-			var result errorResponse
+			var result response.ErrorResponse
 			if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 				t.Fatal(err)
 			}
@@ -327,4 +338,24 @@ func TestDomainValidationIsDelegated(t *testing.T) {
 	if !createCalled || !searchCalled {
 		t.Fatal("domain validation must reach the service")
 	}
+}
+
+func testRoutes(service Service) (nethttp.Handler, error) {
+	h, err := New(service)
+	if err != nil {
+		return nil, err
+	}
+	r := chi.NewRouter()
+	r.Post("/comments", h.Create)
+	r.Get("/comments", h.List)
+	r.Get("/comments/search", h.Search)
+	r.Delete("/comments/{id}", h.Delete)
+	r.NotFound(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		response.Fail(w, r, response.Error{Status: nethttp.StatusNotFound, Code: "not_found", Message: "Resource not found"})
+	})
+	r.MethodNotAllowed(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		w.Header().Set("Allow", "GET, POST")
+		response.Fail(w, r, response.Error{Status: nethttp.StatusMethodNotAllowed, Code: "method_not_allowed", Message: "Method not allowed"})
+	})
+	return r, nil
 }

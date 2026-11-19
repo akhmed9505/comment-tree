@@ -1,4 +1,4 @@
-package http
+package middleware
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/akhmed9505/comment-tree/internal/config"
+	"github.com/akhmed9505/comment-tree/internal/delivery/http/response"
 	"github.com/akhmed9505/comment-tree/internal/domain"
 	"github.com/akhmed9505/comment-tree/internal/logger"
 )
@@ -29,11 +30,11 @@ func wrapTest(t *testing.T, limits config.Limits, output io.Writer, next nethttp
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrap, err := NewMiddleware(log, limits)
+	wrap, err := New(log, limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return wrap(next)
+	return wrap.Wrap(next)
 }
 
 type countingWriter struct {
@@ -54,7 +55,7 @@ func TestMiddlewareMetadataAndLogging(t *testing.T) {
 		ids = append(ids, id)
 		w.Header().Set("X-Request-ID", "forged")
 		w.Header().Set("X-Content-Type-Options", "forged")
-		writeJSON(w, nethttp.StatusCreated, map[string]string{"value": "ok"})
+		response.WriteJSON(w, nethttp.StatusCreated, map[string]string{"value": "ok"})
 		w.WriteHeader(nethttp.StatusInternalServerError)
 	}))
 	for range 2 {
@@ -93,14 +94,14 @@ func TestMiddlewareMetadataAndLogging(t *testing.T) {
 }
 
 func TestMiddlewareResponseBoundaries(t *testing.T) {
-	limit := minimumResponseBytes() + 20
+	limit := response.MinimumErrorBytes() + 20
 	for _, extra := range []int{-1, 0, 1} {
 		t.Run(fmt.Sprint(extra), func(t *testing.T) {
 			limits := middlewareLimits()
 			limits.MaxResponseBytes = limit
 			h := wrapTest(t, limits, io.Discard, nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 				w.Header().Set("X-Partial", "private")
-				writeJSON(w, nethttp.StatusCreated, strings.Repeat("x", int(limit)-3+extra))
+				response.WriteJSON(w, nethttp.StatusCreated, strings.Repeat("x", int(limit)-3+extra))
 			}))
 			w := &countingWriter{ResponseRecorder: httptest.NewRecorder()}
 			h.ServeHTTP(w, httptest.NewRequest("GET", "/comments", nil))
@@ -115,7 +116,7 @@ func TestMiddlewareResponseBoundaries(t *testing.T) {
 				if w.Code != nethttp.StatusRequestEntityTooLarge || w.Header().Get("X-Partial") != "" || int64(w.Body.Len()) > limit {
 					t.Fatal("overflow exposed partial response or exceeded limit")
 				}
-				var body errorResponse
+				var body response.ErrorResponse
 				if json.Unmarshal(w.Body.Bytes(), &body) != nil || body.Error.Code != "result_too_large" {
 					t.Fatal("overflow must use the standard error format")
 				}
@@ -156,7 +157,7 @@ func TestMiddlewarePanicRecovery(t *testing.T) {
 			if w.headers != 1 || w.Code != nethttp.StatusInternalServerError || strings.Contains(w.Body.String(), "private") || w.Header().Get("X-Partial") != "" {
 				t.Fatal("panic exposed a partial response")
 			}
-			var body errorResponse
+			var body response.ErrorResponse
 			if json.Unmarshal(w.Body.Bytes(), &body) != nil || body.Error.Code != "internal_error" {
 				t.Fatal("panic must use JSON errors")
 			}
@@ -268,49 +269,22 @@ func TestMiddlewareConcurrencyAndCancellation(t *testing.T) {
 	}
 }
 
-func TestMiddlewareRequestBodyLimit(t *testing.T) {
-	body := `{"author":"A","body":"B"}`
-	for _, delta := range []int{0, -1} {
-		limits := middlewareLimits()
-		limits.MaxRequestBytes = int64(len(body) + delta)
-		service := serviceStub{create: func(context.Context, domain.CreateCommentInput) (domain.Comment, error) {
-			return domain.Comment{ID: 1, CreatedAt: time.Now()}, nil
-		}}
-		routes, err := New(service)
-		if err != nil {
-			t.Fatal(err)
-		}
-		h := wrapTest(t, limits, io.Discard, routes)
-		r := httptest.NewRequest("POST", "/comments", strings.NewReader(body))
-		r.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		want := nethttp.StatusCreated
-		if delta < 0 {
-			want = nethttp.StatusRequestEntityTooLarge
-		}
-		if w.Code != want {
-			t.Fatalf("got %d, want %d", w.Code, want)
-		}
-	}
-}
-
 func TestMiddlewareConfiguration(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
-	if _, err := NewMiddleware(nil, middlewareLimits()); err == nil {
+	if _, err := New(nil, middlewareLimits()); err == nil {
 		t.Fatal("nil logger accepted")
 	}
 	for _, change := range []func(*config.Limits){
-		func(l *config.Limits) { l.RequestTimeout = 0 }, func(l *config.Limits) { l.MaxRequestBytes = 0 }, func(l *config.Limits) { l.MaxConcurrentRequests = 0 }, func(l *config.Limits) { l.MaxResponseBytes = minimumResponseBytes() - 1 },
+		func(l *config.Limits) { l.RequestTimeout = 0 }, func(l *config.Limits) { l.MaxRequestBytes = 0 }, func(l *config.Limits) { l.MaxConcurrentRequests = 0 }, func(l *config.Limits) { l.MaxResponseBytes = response.MinimumErrorBytes() - 1 },
 	} {
 		limits := middlewareLimits()
 		change(&limits)
-		if _, err := NewMiddleware(log, limits); err == nil {
+		if _, err := New(log, limits); err == nil {
 			t.Fatal("invalid middleware limits accepted")
 		}
 	}
 	limits := middlewareLimits()
-	limits.MaxResponseBytes = minimumResponseBytes()
+	limits.MaxResponseBytes = response.MinimumErrorBytes()
 	h := wrapTest(t, limits, io.Discard, nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		_, _ = w.Write([]byte(strings.Repeat("x", int(limits.MaxResponseBytes)+1)))
 	}))
