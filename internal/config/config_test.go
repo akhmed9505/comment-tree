@@ -74,8 +74,7 @@ APP_DATABASE_URL='postgres://dotenv:dotenv-password@localhost/dotenv'
 func TestDotenvCredentialsAndConfigPath(t *testing.T) {
 	path, env := fixture(t, "logging:\n  format: text\n", "")
 	content := "APP_CONFIG_PATH='" + env["APP_CONFIG_PATH"] + "'\n" +
-		"APP_DATABASE_URL='" + validURL + "'\n" +
-		"APP_MIGRATION_DATABASE_URL='postgresql://migrator:password@localhost/db'\n"
+		"APP_DATABASE_URL='" + validURL + "'\n"
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +82,7 @@ func TestDotenvCredentialsAndConfigPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DatabaseURL != validURL || got.MigrationDatabaseURL == "" || got.Logging.Format != "text" {
+	if got.DatabaseURL != validURL || got.Logging.Format != "text" {
 		t.Fatal("dotenv credentials or configuration path were not loaded")
 	}
 }
@@ -255,12 +254,11 @@ func TestConnectionStringsAreNotParsed(t *testing.T) {
 	} {
 		path, env := fixture(t, "{}", "")
 		env["APP_DATABASE_URL"] = value
-		env["APP_MIGRATION_DATABASE_URL"] = value
 		got, err := load(path, lookup(env))
 		if err != nil {
 			t.Fatalf("technical connection validation must be deferred to pgxpool: %v", err)
 		}
-		if got.DatabaseURL != value || got.MigrationDatabaseURL != value {
+		if got.DatabaseURL != value {
 			t.Fatal("connection strings must be passed through unchanged")
 		}
 	}

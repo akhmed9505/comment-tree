@@ -15,10 +15,12 @@ RUN apk add --no-cache ca-certificates && addgroup -S app && adduser -S -G app a
 WORKDIR /app
 USER app:app
 
-FROM runtime AS migrate
+FROM postgres:18.6-alpine AS migrate
+USER postgres
 COPY --from=goose-build /go/bin/goose /usr/local/bin/goose
 COPY migrations/ /migrations/
-ENTRYPOINT ["goose"]
+COPY docker/postgres/grants.sql /postgres/grants.sql
+ENTRYPOINT ["/bin/sh", "-ec"]
 
 FROM runtime AS app
 COPY --from=build /out/server ./server

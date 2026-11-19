@@ -11,12 +11,11 @@ import (
 
 // Config holds application settings. Connection strings are excluded from YAML.
 type Config struct {
-	HTTP                 HTTP     `yaml:"http"`
-	Postgres             Postgres `yaml:"postgres"`
-	Logging              Logging  `yaml:"logging"`
-	Limits               Limits   `yaml:"limits"`
-	DatabaseURL          string   `yaml:"-"`
-	MigrationDatabaseURL string   `yaml:"-"`
+	HTTP        HTTP     `yaml:"http"`
+	Postgres    Postgres `yaml:"postgres"`
+	Logging     Logging  `yaml:"logging"`
+	Limits      Limits   `yaml:"limits"`
+	DatabaseURL string   `yaml:"-"`
 }
 
 // HTTP configures the HTTP server.

@@ -104,7 +104,6 @@ func applyEnvironment(cfg *Config, lookup func(string) (string, bool)) error {
 		set  func(string) error
 	}{
 		{"APP_DATABASE_URL", stringValue(&cfg.DatabaseURL)},
-		{"APP_MIGRATION_DATABASE_URL", stringValue(&cfg.MigrationDatabaseURL)},
 		{"APP_HTTP_ADDR", stringValue(&cfg.HTTP.Addr)},
 		{"APP_HTTP_READ_HEADER_TIMEOUT", durationValue(&cfg.HTTP.ReadHeaderTimeout)},
 		{"APP_HTTP_READ_TIMEOUT", durationValue(&cfg.HTTP.ReadTimeout)},

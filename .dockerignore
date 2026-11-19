@@ -12,3 +12,6 @@
 **/*_test.go
 !migrations/
 !migrations/**
+!docker/
+!docker/postgres/
+!docker/postgres/**
