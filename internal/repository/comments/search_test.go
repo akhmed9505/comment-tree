@@ -9,19 +9,6 @@ import (
 	"github.com/akhmed9505/comment-tree/internal/domain"
 )
 
-func TestNormalizeSearch(t *testing.T) {
-	for _, query := range []string{"  КОШКИ\t RUNNING\n", "кошки running"} {
-		options := domain.SearchOptions{Query: query, Limit: 1, After: &domain.SearchCursor{ID: 1, CreatedAt: time.Now(), Query: "кошки running"}}
-		got, err := normalizeSearch(options)
-		if err != nil || got != "кошки running" {
-			t.Fatal("query normalization must preserve cursor binding")
-		}
-	}
-	if _, err := normalizeSearch(domain.SearchOptions{Query: strings.Repeat("я", domain.MaxSearchQueryLength), Limit: domain.MaxSearchPageSize}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestSearchRejectsInvalidOptions(t *testing.T) {
 	for name, change := range map[string]func(*domain.SearchOptions){
 		"zero limit":     func(o *domain.SearchOptions) { o.Limit = 0 },

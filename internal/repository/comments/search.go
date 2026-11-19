@@ -3,8 +3,6 @@ package comments
 import (
 	"context"
 	"fmt"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/akhmed9505/comment-tree/internal/domain"
 )
@@ -12,7 +10,7 @@ import (
 // Search returns body matches in descending timestamp and ID order, with discussion roots.
 // Blank queries are invalid; queries without searchable lexemes return an empty page.
 func (r *Repository) Search(ctx context.Context, options domain.SearchOptions) (domain.SearchPage, error) {
-	query, err := normalizeSearch(options)
+	query, err := options.NormalizedQuery()
 	if err != nil {
 		return domain.SearchPage{}, err
 	}
@@ -61,23 +59,4 @@ func (r *Repository) Search(ctx context.Context, options domain.SearchOptions) (
 		page.Next = &domain.SearchCursor{CreatedAt: last.CreatedAt, ID: last.ID, Query: query}
 	}
 	return page, nil
-}
-
-func normalizeSearch(options domain.SearchOptions) (string, error) {
-	if options.Limit < 1 || options.Limit > domain.MaxSearchPageSize {
-		return "", fmt.Errorf("search page size must be in 1..%d: %w", domain.MaxSearchPageSize, domain.ErrInvalidInput)
-	}
-	if !utf8.ValidString(options.Query) || strings.ContainsRune(options.Query, 0) {
-		return "", fmt.Errorf("search query must be valid UTF-8 without NUL: %w", domain.ErrInvalidInput)
-	}
-	query := strings.ToLower(strings.Join(strings.Fields(options.Query), " "))
-	if query == "" || utf8.RuneCountInString(query) > domain.MaxSearchQueryLength {
-		return "", fmt.Errorf("search query length must be in 1..%d characters: %w", domain.MaxSearchQueryLength, domain.ErrInvalidInput)
-	}
-	if cursor := options.After; cursor != nil {
-		if cursor.ID <= 0 || cursor.CreatedAt.IsZero() || cursor.Query != query {
-			return "", fmt.Errorf("search cursor must contain a valid key and match the normalized query: %w", domain.ErrInvalidInput)
-		}
-	}
-	return query, nil
 }

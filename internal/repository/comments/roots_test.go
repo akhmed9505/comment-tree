@@ -41,16 +41,3 @@ func TestListRootsRejectsInvalidOptions(t *testing.T) {
 		})
 	}
 }
-
-func TestValidateRootPage(t *testing.T) {
-	for _, order := range []domain.RootOrder{domain.RootASC, domain.RootDESC} {
-		options := domain.RootPageOptions{Limit: domain.MaxRootPageSize, MaxNodes: 1, Order: order}
-		if err := validateRootPage(options); err != nil {
-			t.Fatal(err)
-		}
-		options.After = &domain.RootCursor{ID: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 123456000, time.UTC), Order: order}
-		if err := validateRootPage(options); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
