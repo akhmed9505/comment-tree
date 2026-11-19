@@ -84,6 +84,9 @@ cp .env.example .env
 make docker-up
 ```
 
+- Веб-интерфейс: [http://localhost:8080](http://localhost:8080)
+- REST API: [http://localhost:8080/comments](http://localhost:8080/comments)
+
 Остановка:
 
 ```sh
@@ -225,7 +228,7 @@ make check
 - `make fmt` — форматирование Go-кода.
 - `make vet` — статические проверки.
 - `make test` — unit-тесты с race detector.
-- `make test-integration` — все тесты, включая интеграционные с Testcontainers и race detector.
+- `make test-integration` — интеграционные тесты с Testcontainers и race detector.
 - `make check` — проверка форматирования, vet, тесты и сборка.
 - `make docker-up` — сборка и запуск Docker Compose.
 - `make docker-down` — остановка Docker Compose с сохранением данных.

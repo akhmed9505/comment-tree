@@ -13,7 +13,7 @@ test:
 	go test -race ./...
 
 test-integration:
-	go test -race -tags=integration -count=1 -timeout=3m ./...
+	go test -race -tags=integration -count=1 -timeout=3m ./tests/integration
 
 check: vet test test-integration
 	@test -z "$$(gofmt -l cmd internal tests web)" || { echo "Go files need formatting"; exit 1; }
