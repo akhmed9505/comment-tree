@@ -126,6 +126,7 @@ func TestCommentsMigration(t *testing.T) {
 	})
 
 	testutil.Migrate(t, dsn, "down")
+	testutil.Migrate(t, dsn, "down")
 	var absent bool
 	err = pool.QueryRow(ctx, "SELECT to_regclass('public.comments') IS NULL AND to_regclass('public.comments_id_seq') IS NULL AND NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'comments')").Scan(&absent)
 	if err != nil || !absent {
