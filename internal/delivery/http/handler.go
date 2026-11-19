@@ -17,7 +17,6 @@ import (
 )
 
 // Service provides comment operations consumed by the HTTP handlers.
-
 type Service interface {
 	Create(context.Context, domain.CreateCommentInput) (domain.Comment, error)
 	Delete(context.Context, int64) error
@@ -27,17 +26,15 @@ type Service interface {
 }
 
 type handler struct {
-	service         Service
-	maxRequestBytes int64
+	service Service
 }
 
-// New returns routes with a configured JSON request body limit.
-
-func New(service Service, maxRequestBytes int64) (nethttp.Handler, error) {
-	if service == nil || maxRequestBytes < 1 {
-		return nil, errors.New("HTTP service and positive request body limit are required")
+// New returns comment routes; middleware supplies request resource limits.
+func New(service Service) (nethttp.Handler, error) {
+	if service == nil {
+		return nil, errors.New("HTTP service is required")
 	}
-	h := handler{service, maxRequestBytes}
+	h := handler{service: service}
 	router := chi.NewRouter()
 	router.Post("/comments", h.create)
 	router.Get("/comments", h.list)
@@ -115,7 +112,7 @@ func (h handler) create(w nethttp.ResponseWriter, r *nethttp.Request) {
 		fail(w, r, apiError{nethttp.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json"})
 		return
 	}
-	data, err := io.ReadAll(nethttp.MaxBytesReader(w, r.Body, h.maxRequestBytes))
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		var large *nethttp.MaxBytesError
 		if errors.As(err, &large) {

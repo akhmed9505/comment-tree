@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	nethttp "net/http"
 	"net/http/httptest"
 	"net/url"
@@ -46,12 +47,15 @@ func (s serviceStub) Search(c context.Context, o domain.SearchOptions) (domain.S
 
 func request(t *testing.T, s Service, method, path, body string, maxBytes int64) *httptest.ResponseRecorder {
 	t.Helper()
-	h, err := New(s, maxBytes)
+	h, err := New(s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(context.WithValue(t.Context(), contextKey{}, t.Context()))
 	r.Header.Set("Content-Type", "application/json")
+	limits := middlewareLimits()
+	limits.MaxRequestBytes = maxBytes
+	h = wrapTest(t, limits, io.Discard, h)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
@@ -190,7 +194,7 @@ func TestInvalidRequests(t *testing.T) {
 	if w := request(t, serviceStub{}, "PUT", "/comments", "", 65536); w.Header().Get("Allow") != "GET, POST" {
 		t.Fatal("nethttp.StatusMethodNotAllowed must list supported methods")
 	}
-	h, _ := New(serviceStub{}, 10)
+	h, _ := New(serviceStub{})
 	r := httptest.NewRequest("POST", "/comments", strings.NewReader("{}"))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -255,12 +259,10 @@ func TestCursorValidation(t *testing.T) {
 			t.Fatal("malformed cursor accepted")
 		}
 	}
-	if _, err := New(nil, 1); err == nil {
+	if _, err := New(nil); err == nil {
 		t.Fatal("nil service accepted")
 	}
-	if _, err := New(serviceStub{}, 0); err == nil {
-		t.Fatal("invalid body limit accepted")
-	}
+
 }
 
 func validatingStub() serviceStub {

@@ -34,6 +34,14 @@ func fail(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
 	if errors.Is(err, context.Canceled) || errors.Is(r.Context().Err(), context.Canceled) {
 		return
 	}
+	e := responseError(err)
+	if errors.Is(err, domain.ErrLockUnavailable) {
+		w.Header().Set("Retry-After", "1")
+	}
+	writeJSON(w, e.status, errorResponse{Error: errorDTO{Code: e.code, Message: e.message}})
+}
+
+func responseError(err error) apiError {
 	e := apiError{nethttp.StatusInternalServerError, "internal_error", "Internal server error"}
 	var specific apiError
 	switch {
@@ -51,7 +59,6 @@ func fail(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
 		e = apiError{nethttp.StatusConflict, "concurrent_conflict", "Concurrent operation conflict"}
 	case errors.Is(err, domain.ErrLockUnavailable):
 		e = apiError{nethttp.StatusServiceUnavailable, "lock_unavailable", "Required lock is unavailable"}
-		w.Header().Set("Retry-After", "1")
 	case errors.Is(err, domain.ErrUnavailable):
 		e = apiError{nethttp.StatusServiceUnavailable, "unavailable", "Service temporarily unavailable"}
 	case errors.Is(err, context.DeadlineExceeded):
@@ -59,7 +66,7 @@ func fail(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
 	case errors.Is(err, domain.ErrQueryInterrupted):
 		e = apiError{nethttp.StatusGatewayTimeout, "query_interrupted", "Query interrupted"}
 	}
-	writeJSON(w, e.status, errorResponse{Error: errorDTO{Code: e.code, Message: e.message}})
+	return e
 }
 
 func writeJSON(w nethttp.ResponseWriter, status int, value any) {
@@ -74,7 +81,6 @@ func writeJSON(w nethttp.ResponseWriter, status int, value any) {
 }
 
 // decodeObject rejects duplicate keys, unknown fields and trailing JSON values.
-
 func decodeObject(data []byte, value any) error {
 	if !utf8.Valid(data) {
 		return domain.ErrInvalidInput
