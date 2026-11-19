@@ -1,6 +1,6 @@
 //go:build integration
 
-package postgres
+package integration
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/akhmed9505/comment-tree/internal/testutil"
+	"github.com/akhmed9505/comment-tree/internal/infra/postgres"
+	"github.com/akhmed9505/comment-tree/tests/testutil"
 )
 
 func TestPoolIntegration(t *testing.T) {
@@ -25,12 +26,12 @@ func TestPoolIntegration(t *testing.T) {
 	cfg.ConnectTimeout = 5 * time.Second
 	cfg.StatementTimeout = 300 * time.Millisecond
 	cfg.LockTimeout = 75 * time.Millisecond
-	pool, err := NewPool(ctx, dsn, cfg)
+	pool, err := postgres.NewPool(ctx, dsn, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if err := Ping(ctx, pool); err != nil {
+	if err := postgres.Ping(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
 
@@ -66,7 +67,7 @@ func TestPoolIntegration(t *testing.T) {
 	t.Run("statement timeout", func(t *testing.T) {
 		_, err := pool.Exec(ctx, "SELECT pg_sleep(5)")
 		assertSQLState(t, err, "57014")
-		if err := Ping(ctx, pool); err != nil {
+		if err := postgres.Ping(ctx, pool); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -90,7 +91,7 @@ func TestPoolIntegration(t *testing.T) {
 			t.Fatal("parse test connection settings failed")
 		}
 		parsed.User = url.UserPassword("private_user", "private_incorrect_password")
-		badPool, err := NewPool(ctx, parsed.String(), cfg)
+		badPool, err := postgres.NewPool(ctx, parsed.String(), cfg)
 		if badPool != nil {
 			badPool.Close()
 			t.Fatal("expected authentication failure")

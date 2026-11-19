@@ -1,6 +1,6 @@
 //go:build integration
 
-package postgres
+package integration
 
 import (
 	"context"
@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/akhmed9505/comment-tree/internal/domain"
-	"github.com/akhmed9505/comment-tree/internal/testutil"
+	"github.com/akhmed9505/comment-tree/internal/infra/postgres"
+	"github.com/akhmed9505/comment-tree/tests/testutil"
 )
 
 func TestCommentsMigration(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCommentsMigration(t *testing.T) {
 	defer cancel()
 	cfg := testConfig()
 	cfg.ConnectTimeout = 5 * time.Second
-	pool, err := NewPool(ctx, dsn, cfg)
+	pool, err := postgres.NewPool(ctx, dsn, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
