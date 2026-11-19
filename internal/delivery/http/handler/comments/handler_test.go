@@ -23,6 +23,16 @@ import (
 	"github.com/akhmed9505/comment-tree/internal/domain"
 )
 
+type commentsResponse struct {
+	Comments   []commentDTO `json:"comments"`
+	NextCursor *string      `json:"next_cursor"`
+}
+
+type searchResponse struct {
+	Matches    []matchDTO `json:"matches"`
+	NextCursor *string    `json:"next_cursor"`
+}
+
 type contextKey struct{}
 
 type serviceStub struct {

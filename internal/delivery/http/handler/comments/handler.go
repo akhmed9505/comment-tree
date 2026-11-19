@@ -172,7 +172,7 @@ func (h *Handler) List(w nethttp.ResponseWriter, r *nethttp.Request) {
 			response.Fail(w, r, err)
 			return
 		}
-		response.WriteJSON(w, nethttp.StatusOK, commentsResponse{Comments: toComments(result)})
+		response.WritePage(w, r, "comments", result, toComment, nil)
 		return
 	}
 	limit, err := pageLimit(q)
@@ -215,7 +215,7 @@ func (h *Handler) List(w nethttp.ResponseWriter, r *nethttp.Request) {
 			return
 		}
 	}
-	response.WriteJSON(w, nethttp.StatusOK, commentsResponse{Comments: toComments(page.Comments), NextCursor: next})
+	response.WritePage(w, r, "comments", page.Comments, toComment, next)
 }
 
 // Search returns matching comments with discussion root IDs.
@@ -249,16 +249,15 @@ func (h *Handler) Search(w nethttp.ResponseWriter, r *nethttp.Request) {
 		response.Fail(w, r, err)
 		return
 	}
-	result := searchResponse{Matches: make([]matchDTO, 0, len(page.Matches))}
-	for _, m := range page.Matches {
-		result.Matches = append(result.Matches, matchDTO{Comment: toComment(m.Comment), RootID: strconv.FormatInt(m.RootID, 10)})
-	}
+	var next *string
 	if c := page.Next; c != nil {
-		result.NextCursor, err = encodeCursor(cursorDTO{Kind: "search", CreatedAt: c.CreatedAt, ID: strconv.FormatInt(c.ID, 10), Query: c.Query})
+		next, err = encodeCursor(cursorDTO{Kind: "search", CreatedAt: c.CreatedAt, ID: strconv.FormatInt(c.ID, 10), Query: c.Query})
 		if err != nil {
 			response.Fail(w, r, err)
 			return
 		}
 	}
-	response.WriteJSON(w, nethttp.StatusOK, result)
+	response.WritePage(w, r, "matches", page.Matches, func(match domain.SearchMatch) matchDTO {
+		return matchDTO{Comment: toComment(match.Comment), RootID: strconv.FormatInt(match.RootID, 10)}
+	}, next)
 }

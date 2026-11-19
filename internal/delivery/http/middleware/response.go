@@ -17,6 +17,9 @@ type boundedResponse struct {
 	cancel context.CancelCauseFunc
 }
 
+// ResponseLimit exposes the byte budget to JSON page encoding.
+func (w *boundedResponse) ResponseLimit() int64 { return w.limit }
+
 func (w *boundedResponse) Header() nethttp.Header { return w.header }
 
 func (w *boundedResponse) WriteHeader(status int) {

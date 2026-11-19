@@ -15,19 +15,9 @@ type commentDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type commentsResponse struct {
-	Comments   []commentDTO `json:"comments"`
-	NextCursor *string      `json:"next_cursor"`
-}
-
 type matchDTO struct {
 	Comment commentDTO `json:"comment"`
 	RootID  string     `json:"root_id"`
-}
-
-type searchResponse struct {
-	Matches    []matchDTO `json:"matches"`
-	NextCursor *string    `json:"next_cursor"`
 }
 
 func toComment(c domain.Comment) commentDTO {
@@ -37,12 +27,4 @@ func toComment(c domain.Comment) commentDTO {
 		dto.ParentID = &v
 	}
 	return dto
-}
-
-func toComments(comments []domain.Comment) []commentDTO {
-	result := make([]commentDTO, 0, len(comments))
-	for _, c := range comments {
-		result = append(result, toComment(c))
-	}
-	return result
 }
