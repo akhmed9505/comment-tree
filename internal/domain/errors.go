@@ -25,3 +25,6 @@ var ErrQueryInterrupted = errors.New("query interrupted")
 
 // ErrInternal indicates an unexpected failure without exposing infrastructure diagnostics.
 var ErrInternal = errors.New("internal error")
+
+// ErrResultTooLarge indicates that a complete result exceeds a configured resource limit.
+var ErrResultTooLarge = errors.New("result too large")
