@@ -44,12 +44,16 @@ func TestApplicationWithPostgres(t *testing.T) {
 	go func() { done <- a.Serve(ctx, listener) }()
 	client := &http.Client{Timeout: 2 * time.Second}
 	base := "http://" + listener.Addr().String()
-	for _, path := range []string{"/healthz", "/readyz", "/comments"} {
+	for _, path := range []string{"/", "/assets/styles.css", "/assets/app.js", "/healthz", "/readyz", "/comments"} {
 		res, err := client.Get(base + path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		_, readErr := io.Copy(io.Discard, res.Body)
 		res.Body.Close()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
 		if res.StatusCode != http.StatusOK || res.Header.Get("X-Request-ID") == "" {
 			t.Fatal("live application endpoint failed")
 		}

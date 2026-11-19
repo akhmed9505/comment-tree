@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CommentTree</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>CommentTree</h1>
+    <form id="root-form" class="comment-form" aria-label="Новый комментарий" novalidate>
+      <h2>Новый комментарий</h2>
+      <label>Имя автора<input name="author" autocomplete="name" required maxlength="160"></label>
+      <label>Текст комментария<textarea name="body" required maxlength="20000" rows="3"></textarea></label>
+      <p class="form-error" role="alert" hidden></p>
+      <div class="form-actions"><button type="submit">Отправить</button></div>
+    </form>
+    <section aria-labelledby="discussion-title">
+      <div class="list-heading"><h2 id="discussion-title" tabindex="-1">Комментарии <span id="comment-count">0</span></h2><button id="refresh" type="button">Обновить</button></div>
+      <p id="notice" class="notice" role="status" hidden></p>
+      <p id="load-error" class="error" role="alert" hidden></p>
+      <p id="loading" role="status">Загрузка…</p>
+      <p id="empty" hidden>Комментариев пока нет.</p>
+      <div id="comment-list" aria-label="Комментарии" aria-busy="true"></div>
+      <p id="page-note" hidden>Показана первая страница обсуждений.</p>
+    </section>
+  </main>
+  <dialog id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+    <form method="dialog">
+      <h2 id="delete-title">Удалить комментарий?</h2>
+      <p id="delete-description">Все ответы тоже будут удалены. Это действие нельзя отменить.</p>
+      <p id="delete-error" class="form-error" role="alert" hidden></p>
+      <div class="form-actions"><button value="cancel">Отмена</button><button id="confirm-delete" type="button" class="delete-button">Удалить</button></div>
+    </form>
+  </dialog>
+  <noscript>Для работы с комментариями включите JavaScript.</noscript>
+</body>
+</html>

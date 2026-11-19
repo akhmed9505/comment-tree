@@ -51,6 +51,13 @@ func TestRoutes(t *testing.T) {
 		{http.MethodGet, "/comments?parent=1", "subtree", http.StatusOK},
 		{http.MethodDelete, "/comments/1", "delete", http.StatusNoContent},
 		{http.MethodGet, "/comments/search?q=cats", "search", http.StatusOK},
+		{http.MethodGet, "/", "", http.StatusOK},
+		{http.MethodGet, "/assets/styles.css", "", http.StatusOK},
+		{http.MethodGet, "/assets/app.js", "", http.StatusOK},
+		{http.MethodHead, "/", "", http.StatusOK},
+		{http.MethodHead, "/assets/styles.css", "", http.StatusOK},
+		{http.MethodHead, "/assets/app.js", "", http.StatusOK},
+		{http.MethodGet, "/assets/missing.js", "", http.StatusNotFound},
 		{http.MethodGet, "/healthz", "", http.StatusOK},
 		{http.MethodGet, "/readyz", "", http.StatusOK},
 		{http.MethodPut, "/comments", "", http.StatusMethodNotAllowed},
@@ -64,6 +71,9 @@ func TestRoutes(t *testing.T) {
 		router.ServeHTTP(w, r)
 		if w.Code != tc.status || service.last != tc.last {
 			t.Fatalf("route %s %s got status %d and handler %s", tc.method, tc.path, w.Code, service.last)
+		}
+		if tc.method == http.MethodHead && w.Body.Len() != 0 {
+			t.Fatal("HEAD returned an asset body")
 		}
 		if tc.status == http.StatusMethodNotAllowed && w.Header().Get("Allow") == "" {
 			t.Fatal("405 missing Allow")
