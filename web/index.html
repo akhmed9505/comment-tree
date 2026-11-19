@@ -17,14 +17,22 @@
       <p class="form-error" role="alert" hidden></p>
       <div class="form-actions"><button type="submit">Отправить</button></div>
     </form>
+    <form id="search-form" class="toolbar" role="search">
+      <label>Поиск по тексту<input name="query" type="search" maxlength="512"></label>
+      <button type="submit">Найти</button><button id="reset" type="button">Сбросить</button>
+    </form>
+    <label id="sort-control">Порядок обсуждений<select id="sort"><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option></select></label>
     <section aria-labelledby="discussion-title">
-      <div class="list-heading"><h2 id="discussion-title" tabindex="-1">Комментарии <span id="comment-count">0</span></h2><button id="refresh" type="button">Обновить</button></div>
+      <div class="list-heading"><h2 id="discussion-title" tabindex="-1"><span id="view-title">Комментарии</span> <span id="comment-count">0</span></h2><button id="refresh" type="button">Обновить</button></div>
       <p id="notice" class="notice" role="status" hidden></p>
       <p id="load-error" class="error" role="alert" hidden></p>
       <p id="loading" role="status">Загрузка…</p>
       <p id="empty" hidden>Комментариев пока нет.</p>
       <div id="comment-list" aria-label="Комментарии" aria-busy="true"></div>
-      <p id="page-note" hidden>Показана первая страница обсуждений.</p>
+      <nav id="pagination" class="toolbar" aria-label="Страницы комментариев">
+        <button id="previous" type="button">Назад</button><span id="page-number"></span><button id="next" type="button">Далее</button>
+      </nav>
+      <button id="back" type="button" hidden>К результатам поиска</button>
     </section>
   </main>
   <dialog id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">

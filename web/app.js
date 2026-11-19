@@ -11,9 +11,14 @@ let loading = false;
 let mutating = false;
 let replyForm = null;
 let deleteTarget = null;
+const searchForm = document.querySelector("#search-form");
+const sort = document.querySelector("#sort");
+let view = { query: "", sort: "newest", cursors: [null], page: 0, root: null, highlight: null };
+let nextCursor = null;
+
 
 const messages = {
-  invalid_input: "Проверьте имя и текст комментария.",
+  invalid_input: "Проверьте введённые данные. Поисковый запрос — до 256 символов.",
   comment_not_found: "Комментарий уже удалён. Обновите обсуждения.",
   parent_not_found: "Комментарий, на который вы отвечаете, уже удалён.",
   result_too_large: "Обсуждение слишком большое для загрузки. Попробуйте позже.",
@@ -50,9 +55,11 @@ function showMessage(element, text) {
 
 function syncControls() {
   const busy = loading || mutating;
-  document.querySelectorAll("button, input, textarea").forEach((control) => { control.disabled = busy; });
+  document.querySelectorAll("button, input, textarea, select").forEach((control) => { control.disabled = busy; });
   refresh.textContent = loading ? "Обновляем…" : "Обновить";
   list.setAttribute("aria-busy", String(loading));
+  document.querySelector("#previous").disabled = busy || view.page === 0;
+  document.querySelector("#next").disabled = busy || !nextCursor;
 }
 
 function element(tag, className, text) {
@@ -62,7 +69,7 @@ function element(tag, className, text) {
   return node;
 }
 
-function renderComments() {
+function renderComments(target, matches) {
   const byID = new Map();
   for (const comment of comments) {
     if (typeof comment.author !== "string" || typeof comment.body !== "string" || typeof comment.created_at !== "string" || typeof comment.id !== "string" || (comment.parent_id !== null && typeof comment.parent_id !== "string") || byID.has(comment.id)) {
@@ -73,7 +80,7 @@ function renderComments() {
   const children = new Map();
   const roots = [];
   for (const comment of comments) {
-    if (comment.parent_id === null || !byID.has(comment.parent_id)) roots.push(comment);
+    if (matches || comment.parent_id === null || !byID.has(comment.parent_id)) roots.push(comment);
     else {
       if (!children.has(comment.parent_id)) children.set(comment.parent_id, []);
       children.get(comment.parent_id).push(comment);
@@ -114,7 +121,16 @@ function renderComments() {
       showMessage(document.querySelector("#delete-error"), "");
       dialog.showModal();
     });
-    actions.append(reply, remove);
+    if (matches) {
+      const open = element("button", "", "К обсуждению");
+      open.type = "button";
+      open.addEventListener("click", () => navigate({ ...view, root: matches.get(comment.id), highlight: comment.id, returnView: view }));
+      actions.append(open, remove);
+    } else actions.append(reply, remove);
+    if (comment.id === target.highlight) {
+      article.classList.add("highlight");
+      article.tabIndex = -1;
+    }
     article.append(actions);
     fragment.append(article);
     const replies = children.get(comment.id) || [];
@@ -126,24 +142,63 @@ function renderComments() {
   document.querySelector("#comment-count").textContent = String(comments.length);
 }
 
-async function loadComments() {
+function firstPage(target = view) {
+  return { ...target, cursors: [null], page: 0 };
+}
+
+function navigate(target) {
+  if (loading || mutating) return;
+  if (replyForm?.elements.body.value && !window.confirm("Перейти? Черновик ответа будет потерян.")) {
+    searchForm.elements.query.value = view.query;
+    sort.value = view.sort;
+    return;
+  }
+  showMessage(notice, "");
+  loadComments(target);
+}
+
+async function loadComments(target = view) {
   if (loading) return;
   loading = true;
   showMessage(loadError, "");
-  document.querySelector("#empty").hidden = true;
-  document.querySelector("#loading").hidden = comments.length > 0;
+  document.querySelector("#loading").hidden = false;
   syncControls();
   try {
-    const data = await api("/comments");
-    if (!data || !Array.isArray(data.comments)) throw new Error("Сервер вернул некорректный список комментариев.");
+    const searching = target.query && !target.root;
+    const params = new URLSearchParams();
+    if (target.root) params.set("parent", target.root);
+    else {
+      params.set("limit", "20");
+      if (searching) params.set("q", target.query);
+      else params.set("sort", target.sort);
+      const cursor = target.cursors[target.page];
+      if (cursor) params.set("cursor", cursor);
+    }
+    const data = await api(`${searching ? "/comments/search" : "/comments"}?${params}`);
+    const rows = searching ? data?.matches?.map((match) => match.comment) : data?.comments;
+    if (!Array.isArray(rows) || (data.next_cursor !== null && typeof data.next_cursor !== "string")) throw new Error("Сервер вернул некорректный список комментариев.");
+    const matches = searching ? new Map(data.matches.map((match) => {
+      if (typeof match.root_id !== "string") throw new Error("Сервер вернул некорректное обсуждение.");
+      return [match.comment.id, match.root_id];
+    })) : null;
     const previous = comments;
-    comments = data.comments;
-    try { renderComments(); } catch (error) { comments = previous; throw error; }
+    comments = rows;
+    try { renderComments(target, matches); } catch (error) { comments = previous; throw error; }
+    view = target;
+    nextCursor = data.next_cursor;
+    document.querySelector("#view-title").textContent = target.root ? "Обсуждение" : searching ? "Результаты поиска" : "Комментарии";
+    document.querySelector("#empty").textContent = searching ? "Ничего не найдено." : "Комментариев пока нет.";
     document.querySelector("#empty").hidden = comments.length !== 0;
-    document.querySelector("#page-note").hidden = !data.next_cursor;
+    document.querySelector("#pagination").hidden = Boolean(target.root);
+    document.querySelector("#page-number").textContent = `Страница ${target.page + 1}`;
+    document.querySelector("#back").hidden = !target.root;
+    document.querySelector("#sort-control").hidden = Boolean(target.query || target.root);
+    if (target.highlight) document.getElementById(`comment-${target.highlight}`)?.focus();
   } catch (error) {
     showMessage(loadError, error.message);
   } finally {
+    searchForm.elements.query.value = view.query;
+    sort.value = view.sort;
     loading = false;
     document.querySelector("#loading").hidden = true;
     syncControls();
@@ -194,7 +249,8 @@ function bindForm(form) {
       await api("/comments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ author, body, parent_id: form.dataset.parentId || null }) });
       form.elements.body.value = "";
       showMessage(notice, form.dataset.parentId ? "Ответ опубликован." : "Обсуждение опубликовано.");
-      await loadComments();
+      const target = form.dataset.parentId ? (view.root ? view : firstPage()) : firstPage({ ...view, query: "", root: null, highlight: null });
+      await loadComments(target);
     } catch (error) {
       showMessage(errorBox, error.message);
     } finally {
@@ -204,19 +260,31 @@ function bindForm(form) {
   });
 }
 
-refresh.addEventListener("click", () => {
-  if (replyForm?.elements.body.value && !window.confirm("Обновить обсуждения? Черновик ответа будет потерян.")) return;
-  loadComments();
+refresh.addEventListener("click", () => navigate(view));
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = searchForm.elements.query.value.trim();
+  if (Array.from(query).length > 256) {
+    showMessage(loadError, "Поисковый запрос — до 256 символов.");
+    return;
+  }
+  navigate(firstPage({ ...view, query, root: null, highlight: null, returnView: null }));
 });
+document.querySelector("#reset").addEventListener("click", () => navigate(firstPage({ ...view, query: "", root: null, highlight: null, returnView: null })));
+sort.addEventListener("change", () => navigate(firstPage({ ...view, sort: sort.value })));
+document.querySelector("#previous").addEventListener("click", () => navigate({ ...view, page: view.page - 1 }));
+document.querySelector("#next").addEventListener("click", () => navigate({ ...view, cursors: [...view.cursors.slice(0, view.page + 1), nextCursor], page: view.page + 1 }));
+document.querySelector("#back").addEventListener("click", () => navigate(view.returnView));
 document.querySelector("#confirm-delete").addEventListener("click", async () => {
   if (mutating || !deleteTarget) return;
   mutating = true;
   syncControls();
   try {
+    const deletedRoot = deleteTarget === view.root;
     await api(`/comments/${encodeURIComponent(deleteTarget)}`, { method: "DELETE" });
     dialog.close();
     showMessage(notice, "Комментарий и ответы на него удалены.");
-    await loadComments();
+    await loadComments(deletedRoot ? firstPage(view.returnView) : view.root ? view : firstPage());
     document.querySelector("#discussion-title").focus();
   } catch (error) {
     showMessage(document.querySelector("#delete-error"), error.message);

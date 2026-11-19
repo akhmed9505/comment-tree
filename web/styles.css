@@ -9,7 +9,7 @@ body { margin: 0; }
 main { max-width: 800px; margin: 28px auto; padding: 0 20px; }
 h1 { margin: 0 0 20px; font-size: 24px; }
 h2 { margin: 0; font-size: 16px; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { padding: 6px 12px; border: 1px solid #cbd1d8; border-radius: 5px; background: white; color: inherit; cursor: pointer; }
 button:hover { background: #eef1f5; }
 button:disabled { opacity: .55; cursor: wait; }
@@ -17,7 +17,7 @@ button:disabled { opacity: .55; cursor: wait; }
 [hidden] { display: none !important; }
 .comment-form { display: grid; gap: 10px; padding: 16px; margin-bottom: 22px; border: 1px solid #d9dee5; border-radius: 6px; background: white; }
 label { display: grid; gap: 4px; }
-input, textarea { min-width: 0; width: 100%; border: 1px solid #cbd1d8; border-radius: 4px; padding: 7px 9px; color: inherit; background: white; }
+input, textarea, select { min-width: 0; width: 100%; border: 1px solid #cbd1d8; border-radius: 4px; padding: 7px 9px; color: inherit; background: white; }
 textarea { resize: vertical; min-height: 72px; }
 .form-actions, .list-heading, .comment-meta, .comment-actions { display: flex; align-items: center; gap: 12px; }
 .list-heading { justify-content: space-between; margin-bottom: 12px; }
@@ -54,3 +54,9 @@ dialog::backdrop { background: #0005; }
   .depth-5 { margin-inline-start: 40px; }
   .depth-1, .depth-2, .depth-3, .depth-4, .depth-5 { padding-inline-start: 8px; }
 }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 14px 0; }
+.toolbar label { flex: 1; min-width: 160px; }
+#sort-control { margin-bottom: 16px; }
+#pagination { align-items: center; }
+.highlight { background: #fff6cf; outline: 2px solid #b18a23; outline-offset: 2px; }
